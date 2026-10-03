@@ -1,0 +1,33 @@
+# Rahasia — JANGAN commit!
+.env
+
+# Database lokal
+app.db
+*.db
+
+# File upload user
+uploads/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual environment
+venv/
+.venv/
+env/
+ENV/
+
+# Vercel
+.vercel
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Log file
+*.log

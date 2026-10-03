@@ -1,16 +1,31 @@
-import os, json, sqlite3, uuid
+import os, json, uuid
 from datetime import date, datetime
 from functools import wraps
 from flask import (Flask, g, render_template, request, redirect, url_for,
                    session, flash, send_from_directory, abort)
 from werkzeug.utils import secure_filename
+from dotenv import load_dotenv
+
+# Load .env kalau ada (untuk lokal)
+load_dotenv()
 
 BASE = os.path.dirname(os.path.abspath(__file__))
-DB = os.path.join(BASE, "app.db")
 UP = os.path.join(BASE, "uploads")
 os.makedirs(UP, exist_ok=True)
 app = Flask(__name__)
-app.secret_key = "mandala-dev-key"
+app.secret_key = os.environ.get("SECRET_KEY", "mandala-dev-key")
+
+# ---------- Deteksi database: PostgreSQL atau SQLite ----------
+DATABASE_URL = os.environ.get("DATABASE_URL", "").strip()
+USE_PG = DATABASE_URL.startswith("postgres")
+
+if USE_PG:
+    import psycopg2
+    import psycopg2.extras
+    DB = None  # tidak dipakai
+else:
+    import sqlite3
+    DB = os.path.join(BASE, "app.db")
 
 STATUS_CLR = {"Draft": "secondary", "Menunggu Review": "warning", "Perlu Revisi": "danger",
               "Siap Dikerjakan": "info", "Sedang Dikerjakan": "primary", "Selesai by Programmer": "success"}
@@ -25,7 +40,8 @@ ASPECTS = {"a_complete": "Kelengkapan pengajuan", "a_need": "Kejelasan kebutuhan
 URG_W = {"High": 3, "Medium": 2, "Low": 1}
 HOME = {"client": "client_list", "analyst": "analyst_list", "leader": "leader_queue", "programmer": "prog_list"}
 
-SCHEMA = """
+# ---------- SCHEMA: versi SQLite & PostgreSQL ----------
+SCHEMA_SQLITE = """
 CREATE TABLE IF NOT EXISTS users(id INTEGER PRIMARY KEY, username TEXT UNIQUE, password TEXT, name TEXT, role TEXT);
 CREATE TABLE IF NOT EXISTS requests(id INTEGER PRIMARY KEY, client_id INT, name TEXT, unit TEXT, pic_name TEXT,
   pic_contact TEXT, purpose TEXT, audience TEXT, deadline TEXT, description TEXT, status TEXT DEFAULT 'Draft',
@@ -40,65 +56,137 @@ CREATE TABLE IF NOT EXISTS progress(id INTEGER PRIMARY KEY, request_id INT, user
   percent INT, created_at TEXT);
 CREATE TABLE IF NOT EXISTS tasks(id INTEGER PRIMARY KEY, request_id INT, name TEXT, description TEXT, assignee_id INT);
 """
+
+SCHEMA_PG = """
+CREATE TABLE IF NOT EXISTS users(id SERIAL PRIMARY KEY, username TEXT UNIQUE, password TEXT, name TEXT, role TEXT);
+CREATE TABLE IF NOT EXISTS requests(id SERIAL PRIMARY KEY, client_id INT, name TEXT, unit TEXT, pic_name TEXT,
+  pic_contact TEXT, purpose TEXT, audience TEXT, deadline TEXT, description TEXT, status TEXT DEFAULT 'Draft',
+  version INT DEFAULT 0, urgency_rec TEXT, urgency TEXT, queue_pos INT, queued_at TEXT, finished_at TEXT,
+  progress INT DEFAULT 0, client_notified INT DEFAULT 1, leader_notified INT DEFAULT 1, created_at TEXT);
+CREATE TABLE IF NOT EXISTS files(id SERIAL PRIMARY KEY, request_id INT, kind TEXT, filename TEXT, stored TEXT, progress_id INT);
+CREATE TABLE IF NOT EXISTS submissions(id SERIAL PRIMARY KEY, request_id INT, version INT, snapshot TEXT,
+  decision TEXT, flags TEXT, notes TEXT, submitted_at TEXT, reviewed_at TEXT);
+CREATE TABLE IF NOT EXISTS assignments(id SERIAL PRIMARY KEY, request_id INT, user_id INT, is_coord INT DEFAULT 0,
+  active INT DEFAULT 1, assigned_at TEXT, removed_at TEXT);
+CREATE TABLE IF NOT EXISTS progress(id SERIAL PRIMARY KEY, request_id INT, user_id INT, pdate TEXT, detail TEXT,
+  percent INT, created_at TEXT);
+CREATE TABLE IF NOT EXISTS tasks(id SERIAL PRIMARY KEY, request_id INT, name TEXT, description TEXT, assignee_id INT);
+"""
+
 SEED = [("client1", "Client Fakultas Teknik", "client"), ("client2", "Client Biro Akademik", "client"),
         ("analyst1", "Analis Satu", "analyst"), ("leader1", "Leader IT", "leader"),
         ("prog1", "Programmer Andi", "programmer"), ("prog2", "Programmer Budi", "programmer"),
         ("prog3", "Programmer Citra", "programmer")]
 
 
+def _connect():
+    """Buat koneksi baru (SQLite atau PostgreSQL)."""
+    if USE_PG:
+        conn = psycopg2.connect(DATABASE_URL)
+        return conn
+    else:
+        conn = sqlite3.connect(DB)
+        conn.row_factory = sqlite3.Row
+        return conn
+
+
+def _adapt(sql):
+    """SQLite pakai '?', PostgreSQL pakai '%s'."""
+    if USE_PG:
+        return sql.replace("?", "%s")
+    return sql
+
+
 def init_db():
-    c = sqlite3.connect(DB)
-    c.executescript(SCHEMA)
-    if not c.execute("SELECT 1 FROM users").fetchone():
-        c.executemany("INSERT INTO users(username,password,name,role) VALUES(?,?,?,?)",
-                      [(u, "123", n, r) for u, n, r in SEED])
-    c.commit(); c.close()
+    conn = _connect()
+    cur = conn.cursor()
+    schema = SCHEMA_PG if USE_PG else SCHEMA_SQLITE
+    # psycopg2 tidak punya executescript, jalankan per statement
+    for stmt in [s.strip() for s in schema.split(";") if s.strip()]:
+        cur.execute(stmt)
+    conn.commit()
+    cur.execute(_adapt("SELECT COUNT(*) FROM users"))
+    count = cur.fetchone()[0]
+    if count == 0:
+        for u, n, r in SEED:
+            cur.execute(_adapt("INSERT INTO users(username,password,name,role) VALUES(?,?,?,?)"),
+                        (u, "123", n, r))
+        conn.commit()
+    cur.close()
+    conn.close()
 
 
 def db():
     if "db" not in g:
-        g.db = sqlite3.connect(DB)
-        g.db.row_factory = sqlite3.Row
+        g.db = _connect()
     return g.db
 
 
 @app.teardown_appcontext
 def close_db(e):
     d = g.pop("db", None)
-    if d: d.close()
+    if d:
+        d.close()
 
 
 def q(sql, a=(), one=False):
-    rows = db().execute(sql, a).fetchall()
-    db().commit()
-    return (rows[0] if rows else None) if one else rows
+    conn = db()
+    if USE_PG:
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    else:
+        cur = conn.cursor()
+    cur.execute(_adapt(sql), a)
+    rows = cur.fetchall()
+    conn.commit()
+    cur.close()
+    if one:
+        return rows[0] if rows else None
+    return rows
 
 
 def ins(sql, a=()):
-    cur = db().execute(sql, a)
-    db().commit()
-    return cur.lastrowid
+    """Insert dan kembalikan id baru."""
+    conn = db()
+    cur = conn.cursor()
+    if USE_PG:
+        # Tambah RETURNING id kalau belum ada
+        if "RETURNING" not in sql.upper():
+            sql = sql.rstrip().rstrip(";") + " RETURNING id"
+        cur.execute(_adapt(sql), a)
+        new_id = cur.fetchone()[0]
+    else:
+        cur.execute(sql, a)
+        new_id = cur.lastrowid
+    conn.commit()
+    cur.close()
+    return new_id
 
 
-def now(): return datetime.now().strftime("%Y-%m-%d %H:%M")
+def now():
+    return datetime.now().strftime("%Y-%m-%d %H:%M")
 
 
 def days_left(d):
-    try: return (date.fromisoformat(d) - date.today()).days
-    except Exception: return 999
+    try:
+        return (date.fromisoformat(d) - date.today()).days
+    except Exception:
+        return 999
 
 
 @app.context_processor
 def ctx():
-    return dict(STATUS_CLR=STATUS_CLR, LABEL=LABEL, KIND=KIND, ASPECTS=ASPECTS, FIELDS=FIELDS, days_left=days_left)
+    return dict(STATUS_CLR=STATUS_CLR, LABEL=LABEL, KIND=KIND, ASPECTS=ASPECTS,
+                FIELDS=FIELDS, days_left=days_left)
 
 
 def role_required(*roles):
     def deco(f):
         @wraps(f)
         def w(*a, **k):
-            if "uid" not in session: return redirect(url_for("login"))
-            if roles and session["role"] not in roles: abort(403)
+            if "uid" not in session:
+                return redirect(url_for("login"))
+            if roles and session["role"] not in roles:
+                abort(403)
             return f(*a, **k)
         return w
     return deco
@@ -115,15 +203,20 @@ def assigned(rid, uid, active_only=False):
 
 def can_view(r):
     role, uid = session["role"], session["uid"]
-    if role == "client": return r["client_id"] == uid
-    if role == "analyst": return r["status"] != "Draft"
-    if role == "leader": return r["status"] != "Draft"
+    if role == "client":
+        return r["client_id"] == uid
+    if role == "analyst":
+        return r["status"] != "Draft"
+    if role == "leader":
+        return r["status"] != "Draft"
     return bool(assigned(r["id"], uid))
 
 
 def rm_file(f):
-    try: os.remove(os.path.join(UP, f["stored"]))
-    except OSError: pass
+    try:
+        os.remove(os.path.join(UP, f["stored"]))
+    except OSError:
+        pass
     q("DELETE FROM files WHERE id=?", (f["id"],))
 
 
@@ -172,18 +265,23 @@ def programmers_with_load():
 
 def apply_team(rid, ids, coord):
     ids = [int(i) for i in ids]
-    if not ids: return "Pilih minimal satu programmer."
+    if not ids:
+        return "Pilih minimal satu programmer."
     coord = int(coord) if coord else None
-    if len(ids) > 1 and coord not in ids: return "Pilih satu Project Coordinator dari programmer terpilih."
-    if len(ids) == 1: coord = None
+    if len(ids) > 1 and coord not in ids:
+        return "Pilih satu Project Coordinator dari programmer terpilih."
+    if len(ids) == 1:
+        coord = None
     cur = {a["user_id"]: a for a in q("SELECT * FROM assignments WHERE request_id=? AND active=1", (rid,))}
     for uid, a in cur.items():
         if uid not in ids:
             q("UPDATE assignments SET active=0, is_coord=0, removed_at=? WHERE id=?", (now(), a["id"]))
     for uid in ids:
-        if uid in cur: q("UPDATE assignments SET is_coord=? WHERE id=?", (int(uid == coord), cur[uid]["id"]))
-        else: ins("INSERT INTO assignments(request_id,user_id,is_coord,assigned_at) VALUES(?,?,?,?)",
-                  (rid, uid, int(uid == coord), now()))
+        if uid in cur:
+            q("UPDATE assignments SET is_coord=? WHERE id=?", (int(uid == coord), cur[uid]["id"]))
+        else:
+            ins("INSERT INTO assignments(request_id,user_id,is_coord,assigned_at) VALUES(?,?,?,?)",
+                (rid, uid, int(uid == coord), now()))
     return None
 
 
@@ -208,7 +306,8 @@ def logout():
 
 @app.route("/")
 def home():
-    if "uid" not in session: return redirect(url_for("login"))
+    if "uid" not in session:
+        return redirect(url_for("login"))
     return redirect(url_for(HOME[session["role"]]))
 
 
@@ -216,7 +315,8 @@ def home():
 @role_required()
 def uploads(fid):
     f = q("SELECT * FROM files WHERE id=?", (fid,), True) or abort(404)
-    if not can_view(get_req(f["request_id"])): abort(403)
+    if not can_view(get_req(f["request_id"])):
+        abort(403)
     return send_from_directory(UP, f["stored"], download_name=f["filename"])
 
 
@@ -224,7 +324,8 @@ def uploads(fid):
 @role_required()
 def request_detail(rid):
     r = get_req(rid)
-    if not can_view(r): abort(403)
+    if not can_view(r):
+        abort(403)
     return render_template("detail.html", **detail_ctx(r))
 
 
@@ -261,17 +362,20 @@ def client_form(rid=None):
         q("UPDATE requests SET " + ",".join(f"{k}=?" for k in FIELDS) + " WHERE id=?", (*data.values(), rid))
         for fid in request.form.getlist("del_file"):
             f = q("SELECT * FROM files WHERE id=? AND request_id=? AND kind='support'", (fid, rid), True)
-            if f: rm_file(f)
+            if f:
+                rm_file(f)
         for field in ("letter", "process"):
             fl = request.files.get(field)
             if fl and fl.filename:
-                for old in q("SELECT * FROM files WHERE request_id=? AND kind=?", (rid, field)): rm_file(old)
+                for old in q("SELECT * FROM files WHERE request_id=? AND kind=?", (rid, field)):
+                    rm_file(old)
                 save_files(rid, field, field)
         save_files(rid, "support", "support")
         if request.form.get("action") == "submit":
             miss = [LABEL[k] for k, v in data.items() if not v]
             for kind in ("letter", "process"):
-                if not q("SELECT 1 FROM files WHERE request_id=? AND kind=?", (rid, kind)): miss.append(KIND[kind])
+                if not q("SELECT 1 FROM files WHERE request_id=? AND kind=?", (rid, kind)):
+                    miss.append(KIND[kind])
             if miss:
                 flash("Belum bisa dikirim, lengkapi: " + ", ".join(miss), "danger")
                 return redirect(url_for("client_form", rid=rid))
@@ -354,7 +458,8 @@ def leader_queue():
 @role_required("leader")
 def leader_urgency(rid):
     u = request.form.get("urgency")
-    if u in URG_W: q("UPDATE requests SET urgency=? WHERE id=? AND status='Siap Dikerjakan'", (u, rid))
+    if u in URG_W:
+        q("UPDATE requests SET urgency=? WHERE id=? AND status='Siap Dikerjakan'", (u, rid))
     return redirect(url_for("leader_queue"))
 
 
@@ -444,7 +549,8 @@ def prog_list():
 
 def prog_ctx(rid):
     r = get_req(rid)
-    if not assigned(rid, session["uid"]): abort(403)
+    if not assigned(rid, session["uid"]):
+        abort(403)
     me = assigned(rid, session["uid"], True)
     team = [a for a in detail_ctx(r)["team"] if a["active"]]
     return r, me, team
@@ -473,8 +579,10 @@ def prog_progress(rid):
         flash("Anda tidak dapat menambah laporan progres pada aplikasi ini.", "danger")
         return redirect(url_for("prog_detail", rid=rid))
     detail = request.form.get("detail", "").strip()
-    try: pct = int(request.form.get("percent", ""))
-    except ValueError: pct = -1
+    try:
+        pct = int(request.form.get("percent", ""))
+    except ValueError:
+        pct = -1
     if not detail or not 0 <= pct <= 99:
         flash("Uraian wajib diisi dan persentase 0-99 (100% otomatis saat ditandai selesai).", "danger")
         return redirect(url_for("prog_detail", rid=rid))
@@ -520,6 +628,11 @@ def prog_task(rid):
     return redirect(url_for("prog_detail", rid=rid))
 
 
-if __name__ == "__main__":
+# Init DB saat modul di-load (dibutuhkan Vercel)
+try:
     init_db()
+except Exception as e:
+    print(f"[WARN] init_db gagal: {e}")
+
+if __name__ == "__main__":
     app.run(debug=True)

@@ -1,3 +1,15 @@
-{% macro badge(s) %}<span class="badge text-bg-{{ STATUS_CLR[s] }}">{{ s }}</span>{% endmacro %}
-{% macro fl(files) %}{% for f in files %}<a class="d-block small" href="{{ url_for('uploads', fid=f.id) }}" target="_blank">📎 {{ f.filename }}</a>{% else %}<span class="text-muted small">-</span>{% endfor %}{% endmacro %}
-{% macro bar(p) %}<div class="progress" style="min-width:90px"><div class="progress-bar" style="width:{{ p }}%">{{ p }}%</div></div>{% endmacro %}
+{% macro badge(s) %}<span class="badge text-bg-{{ STATUS_CLR[s] }}"
+  >{{ s }}</span
+>{% endmacro %} {% macro fl(files) %}{% for f in files %}<a
+  class="d-block small"
+  href="{{ url_for('uploads', fid=f.id) }}"
+  target="_blank"
+  >📎 {{ f.filename }}</a
+>{% else %}<span class="text-muted small">-</span>{% endfor %}{% endmacro %} {%
+macro bar(p) %}
+<div class="progress" style="min-width: 90px">
+  <div class="progress-bar" style="--p: {{ p }}%; width: var(--p);">
+    {{ p }}%
+  </div>
+</div>
+{% endmacro %}
