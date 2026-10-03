@@ -1,0 +1,9 @@
+{% extends "base.html" %}{% from "_m.html" import badge with context %}{% block c %}
+<div class="d-flex justify-content-between mb-3"><h4>Permintaan Saya</h4>
+<a class="btn btn-primary" href="{{ url_for('client_form') }}">+ Ajukan Permintaan Baru</a></div>
+<table class="table table-bordered bg-white"><tr><th>Aplikasi</th><th>Unit</th><th>Deadline</th><th>Status</th><th>Aksi</th></tr>
+{% for r in rows %}<tr><td>{{ r.name }}</td><td>{{ r.unit }}</td><td>{{ r.deadline }}</td><td>{{ badge(r.status) }}</td>
+<td><a class="btn btn-sm btn-outline-secondary" href="{{ url_for('request_detail', rid=r.id) }}">Detail</a>
+{% if r.status=='Draft' %}<a class="btn btn-sm btn-primary" href="{{ url_for('client_form', rid=r.id) }}">Lanjutkan Draf</a>
+{% elif r.status=='Perlu Revisi' %}<a class="btn btn-sm btn-danger" href="{{ url_for('client_form', rid=r.id) }}">Perbaiki / Lengkapi</a>{% endif %}</td></tr>
+{% else %}<tr><td colspan="5" class="text-center text-muted">Belum ada permintaan.</td></tr>{% endfor %}</table>{% endblock %}

@@ -1,0 +1,5 @@
+{% extends "base.html" %}{% block c %}<h4>Permintaan Menunggu Review</h4>
+<table class="table table-bordered bg-white"><tr><th>Aplikasi</th><th>Unit</th><th>Client</th><th>Deadline</th><th>Pengajuan ke</th><th></th></tr>
+{% for r in rows %}<tr><td>{{ r.name }}</td><td>{{ r.unit }}</td><td>{{ r.cname }}</td><td>{{ r.deadline }}</td><td>{{ r.version }}{% if r.version>1 %} <span class="badge text-bg-warning">Diajukan ulang</span>{% endif %}</td>
+<td><a class="btn btn-sm btn-primary" href="{{ url_for('analyst_review', rid=r.id) }}">Review</a></td></tr>
+{% else %}<tr><td colspan="6" class="text-center text-muted">Tidak ada permintaan.</td></tr>{% endfor %}</table>{% endblock %}

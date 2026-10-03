@@ -1,0 +1,18 @@
+{% extends "base.html" %}{% from "_m.html" import fl with context %}{% block c %}
+<h4>{{ 'Perbaiki / Lengkapi Permintaan' if form.status=='Perlu Revisi' else 'Form Permintaan Aplikasi' }}</h4>
+{% if last %}<div class="alert alert-warning"><b>Catatan Tim Analis (pengajuan ke-{{ last.version }}):</b><br>{{ last.notes }}
+<div class="mt-1">Aspek yang perlu diperbaiki: {% for k,v in flags.items() if not v %}<span class="badge text-bg-danger">{{ ASPECTS[k] }}</span> {% endfor %}</div></div>{% endif %}
+<form method="post" enctype="multipart/form-data" class="card card-body">
+{% for k in FIELDS %}<div class="mb-3"><label class="form-label">{{ LABEL[k] }}</label>
+{% if k in ['description','purpose'] %}<textarea name="{{ k }}" class="form-control" rows="3">{{ form[k] or '' }}</textarea>
+{% else %}<input name="{{ k }}" type="{{ 'date' if k=='deadline' else 'text' }}" class="form-control" value="{{ form[k] or '' }}">{% endif %}</div>{% endfor %}
+{% for kind, fld in [('letter','letter'),('process','process')] %}
+<div class="mb-3"><label class="form-label">{{ KIND[kind] }} (wajib)</label>
+<input type="file" name="{{ fld }}" class="form-control">
+{{ fl(files|selectattr('kind','equalto',kind)|list) }}</div>{% endfor %}
+<div class="mb-3"><label class="form-label">Lampiran Pendukung (opsional, boleh lebih dari satu)</label>
+<input type="file" name="support" class="form-control" multiple>
+{% for f in files if f.kind=='support' %}<label class="d-block small"><input type="checkbox" name="del_file" value="{{ f.id }}"> hapus {{ f.filename }}</label>{% endfor %}</div>
+<div><button name="action" value="draft" class="btn btn-secondary">Simpan Draf</button>
+<button name="action" value="submit" class="btn btn-primary">Kirim Permintaan</button></div>
+</form>{% endblock %}

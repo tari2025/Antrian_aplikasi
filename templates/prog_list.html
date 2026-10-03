@@ -1,0 +1,6 @@
+{% extends "base.html" %}{% from "_m.html" import badge, bar with context %}{% block c %}<h4>Aplikasi yang Ditugaskan</h4>
+<table class="table table-bordered bg-white"><tr><th>Aplikasi</th><th>Unit</th><th>Deadline</th><th>Status</th><th>Progress</th><th>Peran</th><th></th></tr>
+{% for r in rows %}<tr><td>{{ r.name }}</td><td>{{ r.unit }}</td><td>{{ r.deadline }}</td><td>{{ badge(r.status) }}</td><td>{{ bar(r.progress) }}</td>
+<td>{% if not r.active %}<span class="badge text-bg-secondary">Tidak ditugaskan lagi</span>{% elif r.is_coord %}<span class="badge text-bg-primary">Project Coordinator</span>{% else %}Programmer{% endif %}</td>
+<td><a class="btn btn-sm btn-primary" href="{{ url_for('prog_detail', rid=r.id) }}">Buka</a></td></tr>
+{% else %}<tr><td colspan="7" class="text-center text-muted">Belum ada penugasan.</td></tr>{% endfor %}</table>{% endblock %}

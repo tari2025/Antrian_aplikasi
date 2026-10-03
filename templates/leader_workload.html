@@ -1,0 +1,7 @@
+{% extends "base.html" %}{% block c %}<h4>Beban Kerja Programmer</h4>
+<p class="small text-muted">Skor per aplikasi aktif = bobot urgensi (High 3 / Medium 2 / Low 1) × (1 + sisa progress) + bonus deadline (lewat +3, ≤7 hari +2, ≤14 hari +1).</p>
+{% for p in progs %}<div class="card mb-3"><div class="card-body"><h5>{{ p.u.name }}
+<span class="badge text-bg-{{ {'Ringan':'success','Sedang':'warning','Berat':'danger'}[p.level] }}">{{ p.level }}</span> <small class="text-muted">skor {{ p.score }}</small></h5>
+<table class="table table-sm mb-0"><tr><th>Aplikasi</th><th>Urgensi</th><th>Progress</th><th>Deadline</th></tr>
+{% for a in p.apps %}<tr><td><a href="{{ url_for('request_detail', rid=a.id) }}">{{ a.name }}</a></td><td>{{ a.urgency or '-' }}</td><td>{{ a.progress }}%</td><td>{{ a.deadline }}</td></tr>
+{% else %}<tr><td colspan="4" class="text-muted">Tidak ada aplikasi aktif.</td></tr>{% endfor %}</table></div></div>{% endfor %}{% endblock %}

@@ -1,0 +1,18 @@
+{% extends "base.html" %}{% from "_m.html" import badge, fl, bar with context %}{% block c %}
+<a href="{{ url_for('analyst_list') }}">&larr; Kembali</a>
+{% include "_detail.html" %}
+{% if cmp %}<div class="card mb-3"><div class="card-body"><h5>Perbandingan Pengajuan ke-{{ cmp.old_ver }} vs ke-{{ cmp.new_ver }}</h5>
+<table class="table table-sm"><tr><th>Field</th><th>Sebelumnya</th><th>Terbaru</th></tr>
+{% for l,o,n in cmp.rows %}<tr class="{{ 'table-warning' if o!=n }}"><td>{{ l }}</td><td>{{ o }}</td><td>{{ n }}</td></tr>{% endfor %}</table>
+<div class="row"><div class="col"><b>Lampiran sebelumnya</b>{% for f in cmp.old_files %}<div class="small {{ 'text-danger' if f not in cmp.new_files }}">{{ f }}{% if f not in cmp.new_files %} (diganti/dihapus){% endif %}</div>{% endfor %}</div>
+<div class="col"><b>Lampiran terbaru</b>{% for f in cmp.new_files %}<div class="small {{ 'text-success' if f not in cmp.old_files }}">{{ f }}{% if f not in cmp.old_files %} (baru){% endif %}</div>{% endfor %}</div></div>
+</div></div>{% endif %}
+<form method="post" class="card card-body">
+<h5>Penilaian Kesiapan</h5><p class="small text-muted">Centang aspek yang sudah terpenuhi. Aspek yang tidak dicentang dianggap belum jelas.</p>
+{% for k,l in ASPECTS.items() %}<label class="d-block"><input type="checkbox" name="{{ k }}" checked> {{ l }} terpenuhi</label>{% endfor %}
+<label class="form-label mt-3">Catatan perbaikan untuk Client (wajib bila dikembalikan)</label>
+<textarea name="notes" class="form-control mb-3" rows="3"></textarea>
+<label class="form-label">Rekomendasi urgensi (bila siap)</label>
+<select name="urgency_rec" class="form-select mb-3" style="max-width:200px"><option value="">-</option><option>High</option><option>Medium</option><option>Low</option></select>
+<div><button name="decision" value="ready" class="btn btn-success">Nyatakan Siap Dikerjakan</button>
+<button name="decision" value="revise" class="btn btn-danger">Kembalikan (Perlu Revisi)</button></div></form>{% endblock %}

@@ -1,0 +1,27 @@
+{% extends "base.html" %}{% from "_m.html" import badge, fl, bar with context %}{% block c %}
+<a href="{{ url_for('prog_list') }}">&larr; Kembali</a>
+{% include "_detail.html" %}
+{% if active_team|length>1 %}<div class="card mb-3"><div class="card-body"><h5>Pembagian Pekerjaan</h5>
+{% for t in tasks %}
+{% if can_task %}<form method="post" action="{{ url_for('prog_task', rid=r.id) }}" class="row g-2 mb-2"><input type="hidden" name="task_id" value="{{ t.id }}">
+<div class="col"><input name="name" class="form-control form-control-sm" value="{{ t.name }}"></div>
+<div class="col"><input name="description" class="form-control form-control-sm" value="{{ t.description }}"></div>
+<div class="col-3"><select name="assignee" class="form-select form-select-sm">{% if t.assignee_id not in active_ids %}<option value="">(pilih - PJ sebelumnya sudah tidak aktif)</option>{% endif %}
+{% for a in active_team %}<option value="{{ a.user_id }}" {{ 'selected' if a.user_id==t.assignee_id }}>{{ a.uname }}</option>{% endfor %}</select></div>
+<div class="col-auto"><button class="btn btn-sm btn-outline-primary">Simpan</button></div></form>
+{% else %}<div class="border-bottom py-1 {{ 'fw-bold' if t.assignee_id==session.uid }}">{{ t.name }} &mdash; {{ t.description }} <span class="badge text-bg-secondary">{{ t.uname }}{{ ' (tidak aktif)' if t.assignee_id not in active_ids }}</span>{{ ' ← tugas Anda' if t.assignee_id==session.uid }}</div>{% endif %}
+{% else %}<div class="text-muted">Belum ada pembagian pekerjaan.</div>{% endfor %}
+{% if can_task %}<hr><form method="post" action="{{ url_for('prog_task', rid=r.id) }}" class="row g-2"><div class="col"><input name="name" class="form-control form-control-sm" placeholder="Nama pekerjaan"></div>
+<div class="col"><input name="description" class="form-control form-control-sm" placeholder="Deskripsi singkat"></div>
+<div class="col-3"><select name="assignee" class="form-select form-select-sm">{% for a in active_team %}<option value="{{ a.user_id }}">{{ a.uname }}</option>{% endfor %}</select></div>
+<div class="col-auto"><button class="btn btn-sm btn-success">Tambah</button></div></form>{% endif %}
+</div></div>{% endif %}
+{% if working %}<div class="card mb-3"><div class="card-body"><h5>Buat Laporan Progres</h5>
+<form method="post" action="{{ url_for('prog_progress', rid=r.id) }}" enctype="multipart/form-data">
+<div class="row g-2 mb-2"><div class="col-md-3"><label class="form-label">Tanggal</label><input type="date" name="pdate" class="form-control" value="{{ now_date }}"></div>
+<div class="col-md-3"><label class="form-label">Persentase progres aplikasi (0-99)</label><input type="number" name="percent" min="0" max="99" class="form-control" value="{{ r.progress if r.progress<100 else 99 }}"></div></div>
+<textarea name="detail" class="form-control mb-2" rows="3" placeholder="Uraian pekerjaan yang telah dilakukan"></textarea>
+<input type="file" name="files" class="form-control mb-2" multiple><button class="btn btn-primary">Kirim Laporan</button></form></div></div>
+{% elif not me %}<div class="alert alert-secondary">Anda tidak lagi ditugaskan pada aplikasi ini, sehingga tidak dapat menambah laporan progres.</div>{% endif %}
+{% if can_finish %}<form method="post" action="{{ url_for('prog_finish', rid=r.id) }}" onsubmit="return confirm('Tandai aplikasi ini selesai? Progres menjadi 100% dan laporan baru tidak bisa ditambahkan.')">
+<button class="btn btn-success">Tandai Selesai by Programmer</button></form>{% endif %}{% endblock %}

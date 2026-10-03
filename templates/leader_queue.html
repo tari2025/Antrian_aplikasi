@@ -1,0 +1,9 @@
+{% extends "base.html" %}{% block c %}<h4>Antrean Siap Dikerjakan</h4>
+<table class="table table-bordered bg-white align-middle"><tr><th>#</th><th>Aplikasi</th><th>Unit</th><th>Tujuan</th><th>Deadline</th><th>Masuk Antrean</th><th>Rekomendasi Analis</th><th>Urgensi</th><th>Urutan</th><th></th></tr>
+{% for r in rows %}<tr><td>{{ loop.index }}</td><td><a href="{{ url_for('request_detail', rid=r.id) }}">{{ r.name }}</a></td><td>{{ r.unit }}</td><td>{{ r.purpose }}</td><td>{{ r.deadline }}</td><td>{{ r.queued_at }}</td><td>{{ r.urgency_rec or '-' }}</td>
+<td><form method="post" action="{{ url_for('leader_urgency', rid=r.id) }}" class="d-flex gap-1"><select name="urgency" class="form-select form-select-sm">
+{% for u in ['High','Medium','Low'] %}<option {{ 'selected' if r.urgency==u }}>{{ u }}</option>{% endfor %}</select><button class="btn btn-sm btn-outline-primary">Simpan</button></form></td>
+<td><a class="btn btn-sm btn-outline-secondary" href="{{ url_for('leader_move', rid=r.id, d='up') }}">▲</a>
+<a class="btn btn-sm btn-outline-secondary" href="{{ url_for('leader_move', rid=r.id, d='down') }}">▼</a></td>
+<td><a class="btn btn-sm btn-primary" href="{{ url_for('leader_assign', rid=r.id) }}">Assign</a></td></tr>
+{% else %}<tr><td colspan="10" class="text-center text-muted">Antrean kosong.</td></tr>{% endfor %}</table>{% endblock %}

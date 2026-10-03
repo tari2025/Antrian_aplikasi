@@ -1,0 +1,8 @@
+{% extends "base.html" %}{% from "_m.html" import badge, bar with context %}{% block c %}<h4>Monitoring Pengerjaan</h4>
+<table class="table table-bordered bg-white align-middle"><tr><th>Aplikasi</th><th>Status</th><th>Tim</th><th>Progress</th><th>Deadline</th><th>Peringatan</th><th></th></tr>
+{% for x in rows %}<tr><td><a href="{{ url_for('request_detail', rid=x.r.id) }}">{{ x.r.name }}</a></td><td>{{ badge(x.r.status) }}</td>
+<td>{% for t in x.team %}{{ t.name }}{% if t.is_coord %} (PC){% endif %}{% if not loop.last %}, {% endif %}{% endfor %}</td>
+<td>{{ bar(x.r.progress) }}</td><td>{{ x.r.deadline }}</td>
+<td>{% if x.flag %}<span class="badge text-bg-{{ 'danger' if x.dl<0 else 'warning' }}">{{ x.flag }}</span>{% endif %}</td>
+<td>{% if x.r.status=='Sedang Dikerjakan' %}<a class="btn btn-sm btn-outline-primary" href="{{ url_for('leader_manage', rid=x.r.id) }}">Ubah Penugasan</a>{% endif %}</td></tr>
+{% else %}<tr><td colspan="7" class="text-center text-muted">Belum ada aplikasi yang dikerjakan.</td></tr>{% endfor %}</table>{% endblock %}

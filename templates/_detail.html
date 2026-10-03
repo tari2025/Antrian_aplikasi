@@ -1,0 +1,35 @@
+<div class="card mb-3"><div class="card-body">
+<h4>{{ r.name }} {{ badge(r.status) }}</h4>
+<table class="table table-sm mb-0">
+{% for k in ['unit','pic_name','pic_contact','purpose','audience','deadline','description'] %}
+<tr><th style="width:210px">{{ LABEL[k] }}</th><td>{{ r[k] }}</td></tr>{% endfor %}
+{% for kind in ['letter','process','support'] %}
+<tr><th>{{ KIND[kind] }}</th><td>{{ fl(files|selectattr('kind','equalto',kind)|list) }}</td></tr>{% endfor %}
+{% if r.status in ['Sedang Dikerjakan','Selesai by Programmer'] %}
+<tr><th>Progress</th><td>{{ bar(r.progress) }}</td></tr>{% endif %}
+{% if r.finished_at %}<tr><th>Tanggal Selesai</th><td>{{ r.finished_at }}</td></tr>{% endif %}
+</table></div></div>
+
+{% if session.role in ['client','analyst'] and subs %}
+<div class="card mb-3"><div class="card-body"><h5>Riwayat Pengajuan &amp; Penilaian</h5>
+{% for s in subs %}<div class="border rounded p-2 mb-2">
+<b>Pengajuan ke-{{ s.version }}</b> <span class="text-muted small">{{ s.submitted_at }}</span>
+{% if s.decision=='ready' %}<span class="badge text-bg-info">Dinyatakan siap</span>
+{% elif s.decision=='revise' %}<span class="badge text-bg-danger">Perlu revisi</span>
+{% else %}<span class="badge text-bg-warning">Menunggu review</span>{% endif %}
+{% if s.decision=='revise' %}<div class="mt-1">Aspek yang belum jelas:
+{% for k,v in s.flags.items() if not v %}<span class="badge text-bg-warning">{{ ASPECTS[k] }}</span> {% endfor %}</div>
+<div class="mt-1"><b>Catatan Analis:</b> {{ s.notes }}</div>{% endif %}
+</div>{% endfor %}</div></div>{% endif %}
+
+{% if team %}<div class="card mb-3"><div class="card-body"><h5>Tim Pengerjaan</h5>
+<ul class="mb-0">{% for a in team %}<li>{{ a.uname }}
+{% if a.is_coord and a.active %}<span class="badge text-bg-primary">Project Coordinator</span>{% endif %}
+{% if not a.active %}<span class="badge text-bg-secondary">Tidak lagi ditugaskan ({{ a.removed_at }})</span>{% endif %}
+<span class="text-muted small">sejak {{ a.assigned_at }}</span></li>{% endfor %}</ul></div></div>{% endif %}
+
+{% if session.role != 'client' and (prog or r.status in ['Sedang Dikerjakan','Selesai by Programmer']) %}
+<div class="card mb-3"><div class="card-body"><h5>Riwayat Laporan Progres</h5>
+{% for p in prog %}<div class="border-bottom py-2"><b>{{ p.pdate }}</b> &middot; {{ p.uname }} &middot; <span class="badge text-bg-dark">{{ p.percent }}%</span>
+<div>{{ p.detail }}</div>{{ fl(pfiles|selectattr('progress_id','equalto',p.id)|list) }}</div>
+{% else %}<div class="text-muted">Belum ada laporan progres.</div>{% endfor %}</div></div>{% endif %}

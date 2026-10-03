@@ -1,0 +1,10 @@
+{% extends "base.html" %}{% from "_m.html" import badge with context %}{% block c %}
+<h4>{{ 'Assign Programmer' if mode=='assign' else 'Ubah Penugasan' }}: {{ r.name }} {{ badge(r.status) }}</h4>
+<form method="post" class="card card-body mb-3">
+<table class="table table-sm align-middle"><tr><th>Pilih</th><th>Programmer</th><th>Beban</th><th>Skor</th><th>Aplikasi Aktif</th><th>Coordinator</th></tr>
+{% for p in progs %}<tr><td><input type="checkbox" name="prog" value="{{ p.u.id }}" {{ 'checked' if p.u.id in active_ids }}></td><td>{{ p.u.name }}</td>
+<td><span class="badge text-bg-{{ {'Ringan':'success','Sedang':'warning','Berat':'danger'}[p.level] }}">{{ p.level }}</span></td><td>{{ p.score }}</td><td>{{ p.apps|length }}</td>
+<td><input type="radio" name="coord" value="{{ p.u.id }}" {{ 'checked' if p.u.id==coord_id }}></td></tr>{% endfor %}</table>
+<p class="small text-muted">Bila lebih dari satu programmer dipilih, tentukan satu Project Coordinator.</p>
+<div><button class="btn btn-primary">Simpan</button></div></form>
+{% if history %}<h6>Riwayat Penugasan</h6><ul>{% for a in history %}<li>{{ a.uname }} {% if a.is_coord and a.active %}(Coordinator){% endif %} - sejak {{ a.assigned_at }}{% if not a.active %}, dihentikan {{ a.removed_at }}{% endif %}</li>{% endfor %}</ul>{% endif %}{% endblock %}
